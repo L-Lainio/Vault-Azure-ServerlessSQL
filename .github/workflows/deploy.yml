@@ -1,4 +1,4 @@
-name: Deploy Node.js to Azure Functions
+name: Build and deploy Python project to Azure Function App
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
       - main  # This triggers the deploy whenever you push to main
 
 env:
-  AZURE_FUNCTIONAPP_NAME: 'loraswapi'   # <--- Change this if your app name is different
-  NODE_VERSION: '20.x'                  # Matches modern Azure Node runtimes
+  AZURE_FUNCTIONAPP_NAME: 'loraswapi'   # Your app name
+  PYTHON_VERSION: '3.11'               # Flex Consumption works best with 3.10 or 3.11
 
 jobs:
   build-and-deploy:
@@ -16,23 +16,25 @@ jobs:
       - name: 'Checkout GitHub Action'
         uses: actions/checkout@v4
 
-      - name: 'Setup Node.js Environment'
-        uses: actions/setup-node@v4
+      - name: 'Setup Python ${{ env.PYTHON_VERSION }}'
+        uses: actions/setup-python@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 'Install Dependencies and Build'
-        shell: bash
+      - name: 'Install dependencies'
         run: |
-          pushd './'
-          npm install
-          npm run build --if-present
-          popd
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+
+      # --- THIS IS THE NEW FIX FOR THE 401 ERROR ---
+      - name: 'Login to Azure'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: 'Deploy to Azure Functions'
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: '.'
-          # This pulls the secret you just added to GitHub
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          # Note: We removed the "publish-profile" line entirely
