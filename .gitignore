@@ -73,6 +73,26 @@ web_modules/
 # Azure Functions local settings (contains database credentials)
 local.settings.json
 
+# Azure-specific files
+*.publishsettings
+appsettings*.json
+appsettings.*.json
+
+# Connection strings and secrets
+*.pem
+*.key
+*.crt
+*.pfx
+*.jks
+secrets/
+credentials/
+keys/
+
+# SQL scripts with test data
+*.sql
+!schema.sql
+!migrations/*.sql
+
 # VSCode settings
 .vscode/settings.json
 
