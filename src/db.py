@@ -1,59 +1,39 @@
 import pyodbc
 import struct
 import os
+from typing import Optional, Sequence, Any
 from azure.identity import DefaultAzureCredential
 
 
 def get_db_connection():
-    """
-    Get a secure connection to Azure SQL Database using Managed Identity.
-    
-    This approach:
-    - Uses DefaultAzureCredential (no password needed!)
-    - Works with Azure Functions Managed Identity
-    - Requires MSI to be enabled on the Function App
-    
-    Returns:
-        pyodbc.Connection: Active database connection
-        
-    Raises:
-        Exception: If token retrieval or connection fails
-    """
-    server = os.getenv('DB_SERVER')
-    database = os.getenv('DB_NAME')
-    
+    """Create an Azure SQL connection using Managed Identity (no password)."""
+    server = os.environ.get("DB_SERVER")
+    database = os.environ.get("DB_NAME")
+
     if not server or not database:
-        raise ValueError('DB_SERVER and DB_NAME environment variables must be set')
-    
-    try:
-        # 1. Get a token for Azure SQL using Managed Identity
-        credential = DefaultAzureCredential()
-        token = credential.get_token("https://database.windows.net/.default").token
-        token_bytes = token.encode("utf-16-le")
-        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+        raise ValueError("DB_SERVER and DB_NAME environment variables must be set")
 
-        # 2. Setup connection string (no password needed!)
-        # Driver 18 is the latest; use Driver 17 if 18 is not available on your host
-        conn_str = (
-            f"Driver={{ODBC Driver 18 for SQL Server}};"
-            f"Server={server};"
-            f"Database={database};"
-            f"Encrypt=yes;"
-            f"TrustServerCertificate=no;"
-            f"Connection Timeout=30;"
-        )
-        
-        # 3. Connect and inject the token for authentication
-        SQL_COPT_SS_ACCESS_TOKEN = 1256  # Connection option for access tokens
-        conn = pyodbc.connect(conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
-        
-        return conn
-        
-    except Exception as e:
-        raise Exception(f'Failed to establish database connection: {str(e)}')
+    # Acquire token for Azure SQL
+    credential = DefaultAzureCredential()
+    raw_token = credential.get_token("https://database.windows.net/.default")
+    encoded_token: bytes = raw_token.token.encode("utf-16-le")
+    token_struct = struct.pack(f'<I{len(encoded_token)}s', len(encoded_token), encoded_token)
+
+    # Use ODBC Driver 18 (common on Linux runners)
+    conn_str = (
+        f"Driver={{ODBC Driver 18 for SQL Server}};"
+        f"Server={server};"
+        f"Database={database};"
+        f"Encrypt=yes;"
+        f"TrustServerCertificate=no;"
+        f"Connection Timeout=30;"
+    )
+
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    return pyodbc.connect(conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
 
 
-def execute_query(query: str, params: list = None):
+def execute_query(query: str, params: Optional[Sequence[Any]] = None):
     """
     Execute a SQL query securely with parameters.
     

@@ -32,7 +32,7 @@ def require_auth(req: func.HttpRequest):
     return True, user
 
 
-def audit_log(user_id: str, action: str, details: dict = None):
+def audit_log(user_id: str, action: str, details: dict | None = None):
     """
     Log audit events to the AuditLogs table
     Fail silently if audit logging fails
