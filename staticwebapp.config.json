@@ -1,0 +1,40 @@
+{
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/public/*",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/*",
+      "serve": "/index.html",
+      "statusCode": 200
+    }
+  ],
+  "auth": {
+    "identityProviders": [
+      {
+        "id": "aad",
+        "registration": {
+          "openIdConnectConfig": {
+            "authority": "https://login.microsoftonline.com"
+          }
+        }
+      }
+    ]
+  },
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/aad"
+    },
+    "403": {
+      "rewrite": "/403.html"
+    },
+    "404": {
+      "rewrite": "/404.html"
+    }
+  }
+}
