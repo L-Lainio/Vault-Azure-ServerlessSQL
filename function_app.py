@@ -1,30 +1,11 @@
 import azure.functions as func
-import pyodbc
 import json
 import os
 from datetime import datetime
-from azure.identity import DefaultAzureCredential
+from src.db import execute_query
 
 # Initialize Azure Functions app
 app = func.FunctionApp()
-
-# Database configuration
-DB_SERVER = os.getenv('DB_SERVER')
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-
-# Build connection string
-CONNECTION_STRING = (
-    f'Driver={{ODBC Driver 17 for SQL Server}};'
-    f'Server=tcp:{DB_SERVER},1433;'
-    f'Database={DB_NAME};'
-    f'Uid={DB_USER};'
-    f'Pwd={DB_PASSWORD};'
-    f'Encrypt=yes;'
-    f'TrustServerCertificate=no;'
-    f'Connection Timeout=30;'
-)
 
 
 def extract_user_from_request(req: func.HttpRequest):
@@ -49,41 +30,6 @@ def require_auth(req: func.HttpRequest):
         return False, 'Unauthorized: No user identity found'
     
     return True, user
-
-
-def execute_query(query: str, params: list = None):
-    """
-    Execute a SQL query and return results
-    Uses pyodbc for secure parameterized queries
-    """
-    try:
-        conn = pyodbc.connect(CONNECTION_STRING)
-        cursor = conn.cursor()
-        
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-        
-        # Fetch all results if SELECT
-        if query.strip().upper().startswith('SELECT'):
-            rows = cursor.fetchall()
-            # Convert to list of dicts
-            columns = [column[0] for column in cursor.description]
-            results = [dict(zip(columns, row)) for row in rows]
-            conn.close()
-            return results
-        else:
-            # For INSERT/UPDATE/DELETE, commit and return row count
-            conn.commit()
-            row_count = cursor.rowcount
-            conn.close()
-            return {'rows_affected': row_count}
-            
-    except pyodbc.Error as e:
-        raise Exception(f'Database error: {str(e)}')
-    except Exception as e:
-        raise Exception(f'Error executing query: {str(e)}')
 
 
 def audit_log(user_id: str, action: str, details: dict = None):
@@ -137,7 +83,7 @@ def create_client(req: func.HttpRequest) -> func.HttpResponse:
         VALUES (?, ?, ?, ?)
         """
         
-        result = execute_query(insert_query, [client_name, client_email, user['user_id'], datetime.now()])
+        execute_query(insert_query, [client_name, client_email, user['user_id'], datetime.now()])
         
         # Audit log the creation
         audit_log(user['user_id'], 'CREATE_CLIENT', {
